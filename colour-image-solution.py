@@ -64,12 +64,39 @@ class ImageProcessingApp:
         self.scale_radius.set(50)
         self.scale_radius.grid(row=0, column=2, padx=10, pady=5)
 
+        # 手动输入框
+        self.radius_entry = tk.Entry(self.root, width=10)
+        self.radius_entry.insert(0, str(self.filter_radius))  # 初始化输入框值
+        self.radius_entry.grid(row=0, column=3, padx=10, pady=5)
+
+        # 回车键事件绑定
+        self.radius_entry.bind('<Return>', self.on_entry_submit)
+
         # 使用matplotlib创建图像显示画布
         self.fig, self.axes = plt.subplots(2, 3, figsize=(12, 8))
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.root)
 
         # 修改画布布局行号
         self.canvas.get_tk_widget().grid(row=2, column=0, columnspan=3, padx=10, pady=10)
+
+    def on_entry_submit(self, event=None):
+        """
+        处理用户在输入框中输入的新半径值。
+        如果输入无效，则恢复为当前滑块的值。
+        """
+        try:
+            new_radius = int(self.radius_entry.get())
+            if 10 <= new_radius <= 200:  # 确保数值范围有效
+                self.filter_radius = new_radius
+                self.scale_radius.set(new_radius)  # 同步更新滑块位置
+                if self.original_img is not None:
+                    self.process_and_display()  # 更新图像处理结果
+            else:
+                raise ValueError("超出范围")
+        except ValueError:
+            # 输入无效时恢复当前半径值
+            self.radius_entry.delete(0, tk.END)
+            self.radius_entry.insert(0, str(self.filter_radius))
 
     def load_image(self, file_path=None):
         """
