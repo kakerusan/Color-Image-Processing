@@ -35,7 +35,7 @@ class ImageProcessingApp:
         self.image = None  # 存储当前处理图像
         self.original_img = None  # 存储原始图像（修改初始化）
         self.filter_radius = 50  # 低通滤波器初始半径
-        self.threads = 4  # 多线程处理的线程池大小
+        self.threads = 3  # 多线程处理的线程池大小
 
         # 创建GUI组件
         self.create_widgets()
@@ -60,9 +60,9 @@ class ImageProcessingApp:
         self.lbl_radius = tk.Label(self.root, text='低通滤波器半径:')
         self.lbl_radius.grid(row=0, column=1, padx=10, pady=5)
         self.scale_radius = tk.Scale(self.root, from_=10, to=200,
-                                     orient=tk.HORIZONTAL, command=self.update_radius)
-        self.scale_radius.set(50)
-        self.scale_radius.grid(row=0, column=2, padx=10, pady=5)
+                                     orient=tk.HORIZONTAL, command=self.update_radius) # 创建滑动条组件 root为主窗口 最小值10 最大值200 绑定事件
+        self.scale_radius.set(50)  #设置初始值为50
+        self.scale_radius.grid(row=0, column=2, padx=10, pady=5)  #设置边框
 
         # 手动输入框
         self.radius_entry = tk.Entry(self.root, width=10)
@@ -103,7 +103,7 @@ class ImageProcessingApp:
                加载图像文件。
 
                参数：
-               file_path (str): 图像文件路径（可选）。如果未提供，则通过文件选择对话框选择图像。
+               file_path (str): 图像文件路径。通过文件选择对话框选择图像。
 
                功能：
                - 使用cv2.imdecode读取图像，支持中文路径。
@@ -111,7 +111,7 @@ class ImageProcessingApp:
          """
         # 文件对话框选择图像文件
         if file_path is None:
-            file_path = filedialog.askopenfilename(filetypes=[('图像文件', '*.bmp;*.png;*.jpg')])
+            file_path = filedialog.askopenfilename(filetypes=[('图像文件', '*.bmp;*.png;*.jpg;*.jpeg')])
         if file_path:
             # 使用imdecode处理包含中文路径的文件
             try:
@@ -160,6 +160,11 @@ class ImageProcessingApp:
 
         # 阶段2：通道处理
         with ThreadPoolExecutor(max_workers=self.threads) as executor:
+            """
+            将多通道彩色图像拆分为独立的单通道数组。在 OpenCV 中：
+            cv2.split() 会将 [H, W, C] 格式的图像分解为 C 个 [H, W] 的二维数组
+            对于彩色图像（默认由 cv2.imdecode 加载），返回值顺序为：(B_channel, G_channel, R_channel)
+            """
             channels = cv2.split(self.original_img)
             futures = []
             for channel in channels:
@@ -219,10 +224,8 @@ class ImageProcessingApp:
     def update_radius(self, value):
         """
         更新低通滤波器半径参数。
-
         参数：
         value (str): 滑块的值（字符串形式）。
-
         功能：
         - 更新低通滤波器半径。
         - 如果有原始图像，则重新处理图像并显示结果。
@@ -249,27 +252,47 @@ class ImageProcessingApp:
            - 创建低通滤波器掩膜，并应用低通滤波器。
            - 创建高通滤波器掩膜，并应用高通滤波器。
            - 逆傅里叶变换还原图像。
+
+           空间域 → 傅里叶变换 → 频域中心化 → 掩膜相乘 → 逆变换 → 空间域结果
+           ↑           ↑            ↑            ↑
+        channel     fft2+shift    低/高通滤波   ifft+abs
+
            """
 
         # 单通道图像处理流程
         # 二维傅里叶变换
         f = fft2(channel)
-        # 将零频率分量移到频谱中心
+
+        # 将零频率分量移到频谱中心 将频域矩阵原点从左上角(0,0)移动到中心位置，便于观察低频集中区域
         fshift = fftshift(f)
 
         # 创建低通滤波器掩膜
+        #1.获取输入通道的尺寸
         rows, cols = channel.shape
+        #2.计算图像中心点坐标
         crow, ccol = rows // 2, cols // 2
+        #3.创建低通滤波器掩膜 @return全零矩阵 (0表示抑制频率，1表示保留)
         low_pass_filter = np.zeros((rows, cols), np.uint8)
         # 绘制圆形滤波器区域
-        cv2.circle(low_pass_filter, (ccol, crow), self.filter_radius, 1, -1)
+        # low_pass_filter：目标矩阵
+        # (ccol, crow)：圆心坐标
+        # self.filter_radius：半径（由滑块或者输入控制）
+        # 1：圆内值
+        # -1：填充整个圆
+        #return 中心为1的圆形区域（允许低频通过）
+        cv2.circle(low_pass_filter, (ccol, crow), self.filter_radius, (1,), -1)
 
         # 应用低通滤波器
+        #频域点乘（保留掩膜范围内的频率分量）
         f_low_pass = fshift * low_pass_filter
         # 逆傅里叶变换还原图像
+            # ifftshift()：撤销fftshift操作，恢复频率分布
+            # ifft2()：二维逆傅里叶变换（复数结果）
+            # np.abs()：取模得到实数值图像 只有实数值才能输出
+            # 输出：低通滤波后的图像矩阵（模糊效果）
         img_low_pass = np.abs(ifft2(ifftshift(f_low_pass)))
 
-        # 创建高通滤波器（通过取反低通滤波器）
+        # 创建高通滤波器（通过取反低通滤波器） 通过取反低通掩膜获得（1-低通掩膜）
         high_pass_filter = np.ones((rows, cols), np.uint8) - low_pass_filter
         # 应用高通滤波器
         f_high_pass = fshift * high_pass_filter
