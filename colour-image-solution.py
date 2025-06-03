@@ -239,92 +239,107 @@ class ImageProcessingApp:
             # 参数变化后重新处理图像
             self.process_and_display()
 
-    # def process_channel(self, channel):
-    #     """
-    #        对单通道图像进行傅里叶变换、低通滤波和高通滤波处理。
-    #        参数：
-    #        channel (numpy.ndarray): 输入的单通道图像数据。
-    #        返回值：
-    #        fshift_abs (numpy.ndarray): 傅里叶变换的幅值谱。
-    #        img_low_pass (numpy.ndarray): 低通滤波后的图像。
-    #        img_high_pass (numpy.ndarray): 高通滤波后的图像。
-    #        功能：
-    #        - 对输入的单通道图像进行二维傅里叶变换。
-    #        - 将零频率分量移到频谱中心。
-    #        - 创建低通滤波器掩膜，并应用低通滤波器。
-    #        - 创建高通滤波器掩膜，并应用高通滤波器。
-    #        - 逆傅里叶变换还原图像。
-    #
-    #        空间域 → 傅里叶变换 → 频域中心化 → 掩膜相乘 → 逆变换 → 空间域结果
-    #        ↑           ↑            ↑            ↑
-    #     channel     fft2+shift    低/高通滤波   ifft+abs
-    #
-    #        """
-    #
-    #     # 单通道图像处理流程
-    #     # 二维傅里叶变换
-    #     f = fft2(channel)
-    #
-    #     # 将零频率分量移到频谱中心 将频域矩阵原点从左上角(0,0)移动到中心位置，便于观察低频集中区域
-    #     fshift = fftshift(f)
-    #
-    #     # 创建低通滤波器掩膜
-    #     #1.获取输入通道的尺寸
-    #     rows, cols = channel.shape
-    #     #2.计算图像中心点坐标
-    #     crow, ccol = rows // 2, cols // 2
-    #     #3.创建低通滤波器掩膜 @return全零矩阵 (0表示抑制频率，1表示保留)
-    #     low_pass_filter = np.zeros((rows, cols), np.uint8)
-    #     # 绘制圆形滤波器区域
-    #     # low_pass_filter：目标矩阵
-    #     # (ccol, crow)：圆心坐标
-    #     # self.filter_radius：半径（由滑块或者输入控制）
-    #     # 1：圆内值
-    #     # -1：填充整个圆
-    #     #return 中心为1的圆形区域（允许低频通过）
-    #     cv2.circle(low_pass_filter, (ccol, crow), self.filter_radius, (1,), -1)
-    #
-    #     # 应用低通滤波器
-    #     #频域点乘（保留掩膜范围内的频率分量）
-    #     f_low_pass = fshift * low_pass_filter
-    #     # 逆傅里叶变换还原图像
-    #         # ifftshift()：撤销fftshift操作，恢复频率分布
-    #         # ifft2()：二维逆傅里叶变换（复数结果）
-    #         # np.abs()：取模得到实数值图像 只有实数值才能输出
-    #         # 输出：低通滤波后的图像矩阵（模糊效果）
-    #     img_low_pass = np.abs(ifft2(ifftshift(f_low_pass)))
-    #
-    #     # 创建高通滤波器（通过取反低通滤波器） 通过取反低通掩膜获得（1-低通掩膜）
-    #     high_pass_filter = np.ones((rows, cols), np.uint8) - low_pass_filter
-    #     # 应用高通滤波器
-    #     f_high_pass = fshift * high_pass_filter
-    #     # 逆变换获得高通结果
-    #     img_high_pass = np.abs(ifft2(ifftshift(f_high_pass)))
-    #
-    #     # 返回傅里叶变换的幅值谱、低通和高通结果
-    #     # 注意：返回fshift的幅值而非复数本身,无法加载出虚数部分
-    #     return np.abs(fshift), img_low_pass, img_high_pass
     def process_channel(self, channel):
-        rows, cols = channel.shape
-        crow, ccol = rows // 2, cols // 2
+        """
+           对单通道图像进行傅里叶变换、低通滤波和高通滤波处理。
+           参数：
+           channel (numpy.ndarray): 输入的单通道图像数据。
+           返回值：
+           fshift_abs (numpy.ndarray): 傅里叶变换的幅值谱。
+           img_low_pass (numpy.ndarray): 低通滤波后的图像。
+           img_high_pass (numpy.ndarray): 高通滤波后的图像。
+           功能：
+           - 对输入的单通道图像进行二维傅里叶变换。
+           - 将零频率分量移到频谱中心。
+           - 创建低通滤波器掩膜，并应用低通滤波器。
+           - 创建高通滤波器掩膜，并应用高通滤波器。
+           - 逆傅里叶变换还原图像。
 
-        # 高斯低通滤波器
-        sigma = self.filter_radius
-        X, Y = np.meshgrid(np.arange(cols) - ccol, np.arange(rows) - crow)
-        low_pass_filter = np.exp(-(X ** 2 + Y ** 2) / (2 * sigma ** 2))  # 高斯核
+           空间域 → 傅里叶变换 → 频域中心化 → 掩膜相乘 → 逆变换 → 空间域结果
+           ↑           ↑            ↑            ↑
+        channel     fft2+shift    低/高通滤波   ifft+abs
 
-        # 应用滤波器
+           """
+
+        # 单通道图像处理流程
+        # 二维傅里叶变换
         f = fft2(channel)
+
+        # 将零频率分量移到频谱中心 将频域矩阵原点从左上角(0,0)移动到中心位置，便于观察低频集中区域
         fshift = fftshift(f)
+
+        # 创建低通滤波器掩膜
+        #1.获取输入通道的尺寸
+        rows, cols = channel.shape
+        #2.计算图像中心点坐标
+        crow, ccol = rows // 2, cols // 2
+        #3.创建低通滤波器掩膜 @return全零矩阵 (0表示抑制频率，1表示保留)
+        low_pass_filter = np.zeros((rows, cols), np.uint8)
+        # 绘制圆形滤波器区域
+        # low_pass_filter：目标矩阵
+        # (ccol, crow)：圆心坐标
+        # self.filter_radius：半径（由滑块或者输入控制）
+        # 1：圆内值
+        # -1：填充整个圆
+        #return 中心为1的圆形区域（允许低频通过）
+        cv2.circle(low_pass_filter, (ccol, crow), self.filter_radius, (1,), -1)
+
+        # 应用低通滤波器
+        #频域点乘（保留掩膜范围内的频率分量）
         f_low_pass = fshift * low_pass_filter
+        # 逆傅里叶变换还原图像
+            # ifftshift()：撤销fftshift操作，恢复频率分布
+            # ifft2()：二维逆傅里叶变换（复数结果）
+            # np.abs()：取模得到实数值图像 只有实数值才能输出
+            # 输出：低通滤波后的图像矩阵（模糊效果）
         img_low_pass = np.abs(ifft2(ifftshift(f_low_pass)))
 
-        # 高通滤波器（1 - 低通）
-        high_pass_filter = 1 - low_pass_filter
+        # 创建高通滤波器（通过取反低通滤波器） 通过取反低通掩膜获得（1-低通掩膜）
+        high_pass_filter = np.ones((rows, cols), np.uint8) - low_pass_filter
+        # 应用高通滤波器
         f_high_pass = fshift * high_pass_filter
+        # 逆变换获得高通结果
         img_high_pass = np.abs(ifft2(ifftshift(f_high_pass)))
 
+        # 返回傅里叶变换的幅值谱、低通和高通结果
+        # 注意：返回fshift的幅值而非复数本身,无法加载出虚数部分
         return np.abs(fshift), img_low_pass, img_high_pass
+    # def process_channel(self, channel):
+    #     """
+    #     对单通道图像进行傅里叶变换、低通滤波和高通滤波处理。
+    #     参数：
+    #     channel (numpy.ndarray): 输入的单通道图像数据。
+    #     返回值：
+    #     fshift_abs (numpy.ndarray): 傅里叶变换的幅值谱。
+    #     img_low_pass (numpy.ndarray): 低通滤波后的图像。
+    #     img_high_pass (numpy.ndarray): 高通滤波后的图像。
+    #     功能：
+    #     - 对输入的单通道图像进行二维傅里叶变换。
+    #
+    #     low_pass_filter = np.exp(-(X² + Y²) / (2 * sigma²))
+    #
+    #     """
+    #
+    #     rows, cols = channel.shape
+    #     crow, ccol = rows // 2, cols // 2
+    #
+    #     # 高斯低通滤波器
+    #     sigma = self.filter_radius
+    #     X, Y = np.meshgrid(np.arange(cols) - ccol, np.arange(rows) - crow)
+    #     low_pass_filter = np.exp(-(X ** 2 + Y ** 2) / (2 * sigma ** 2))  # 高斯核
+    #
+    #     # 应用滤波器
+    #     f = fft2(channel)
+    #     fshift = fftshift(f)
+    #     f_low_pass = fshift * low_pass_filter
+    #     img_low_pass = np.abs(ifft2(ifftshift(f_low_pass)))
+    #
+    #     # 高通滤波器（1 - 低通）
+    #     high_pass_filter = 1 - low_pass_filter
+    #     f_high_pass = fshift * high_pass_filter
+    #     img_high_pass = np.abs(ifft2(ifftshift(f_high_pass)))
+    #
+    #     return np.abs(fshift), img_low_pass, img_high_pass
 
 
 if __name__ == '__main__':
