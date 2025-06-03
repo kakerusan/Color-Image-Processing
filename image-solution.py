@@ -46,7 +46,9 @@ plt.show()
 rows, cols = image.shape
 crow, ccol = rows // 2, cols // 2
 
-# 创建低通滤波器
+# 创建低通滤波器低通滤波器是一个以频谱中心为圆心、半径为 r 的圆，圆内值为 1，
+# 表示允许低频信号通过；圆外值为 0，表示衰减高频信号。高通滤波器则是用 1 减去低通滤波器得到的。
+# 滤波后的频域图像通过逆傅里叶变换转换回空间域，得到滤波后的图像。·
 low_pass_filter = np.zeros((rows, cols), np.uint8)
 cv2.circle(low_pass_filter, (ccol, crow), r, 1, -1)
 
